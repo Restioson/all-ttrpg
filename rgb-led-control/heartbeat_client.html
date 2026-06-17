@@ -1,0 +1,357 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<style>
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 50px;
+    }
+
+    button {
+        max-width: max-content;
+    }
+
+    body > div {
+        width: 80%;
+    }
+
+    body > div > div {
+        width: 100%;
+    }
+
+    input[type='range'] {
+        width: 100%;
+    }
+</style>
+<body>
+
+<button type="button" id="connect">Connect ESP32</button>
+
+<div>
+    <div>
+        <input type="range" name="hue" id="hue" min="0" max="1000" value="1000" disabled>
+    </div>
+    <label for="hue">Hue</label>
+</div>
+
+<div>
+    <div>
+        <input type="range" name="sat" id="sat" min="300" max="1000" value="1000" disabled>
+    </div>
+    <label for="sat">Saturation</label>
+</div>
+
+<div>
+    <div>
+        <input type="range" name="light" id="light" min="0" max="1000" value="500" disabled>
+    </div>
+    <label for="light">Lightness</label>
+</div>
+
+<div>
+    <div>
+        <input type="range" name="speed" id="speed" min="750" max="11700" value="1000" disabled>
+    </div>
+    <label for="speed">Speed <span id="bpm"></span></label>
+    <button type="button" name="reset" id="reset">Reset</button>
+</div>
+
+<!--<div>-->
+<!--    <div>-->
+<!--        <input type="range" name="coeff" id="coeff" min="0" max="100" value="50">-->
+<!--    </div>-->
+<!--    <label for="coeff">Blue coeff</label>-->
+<!--</div>-->
+
+<script>
+    let effectiveMinL = 100;
+
+    function hslToLedRgb(h, s, l) {
+        l = Math.min(1, l + (effectiveMinL / 1000));
+
+        // rgb[0] = rgb[0] * 0.95;
+        // rgb[1] = rgb[1] * 0.95;
+        // rgb[2] = Math.min(255, rgb[2] * 1.2);
+        return hslToRgb(h, s, l);
+    }
+
+    let hsl_sliders = [document.getElementById("hue"), document.getElementById("sat"), document.getElementById("light")];
+
+    hsl_sliders[0].addEventListener("input", (e) => { h = e.target.value })
+    hsl_sliders[1].addEventListener("input", (e) => { s = e.target.value })
+    hsl_sliders[2].addEventListener("input", (e) => { l = e.target.value })
+
+    let speed_slider = document.getElementById("speed");
+    function rebuildBpm() {
+        let total = 0;
+        for (let stage of makeHeartbeat(0, 0, 0, speed_slider.value / 1000)["stages"]) {
+            total += stage["length_ms"];
+        }
+        let bpm = 60 / (total / 1000);
+        document.getElementById("bpm").innerText = `(${Math.round(bpm)} bpm)`;
+    }
+
+    speed_slider.addEventListener("input", rebuildBpm);
+
+    rebuildBpm();
+
+    function setDefaults() {
+        hsl_sliders[0].value = 0;
+        hsl_sliders[1].value = 1000;
+        hsl_sliders[2].value = 500;
+        speed_slider.value = 2000;
+        rebuildBpm();
+    }
+
+    setDefaults();
+
+    let h = hsl_sliders[0].value;
+    let s = hsl_sliders[1].value;
+    let l = hsl_sliders[2].value;
+
+    function rebuildSliders() {
+        function cssHsl(h, s, l, a=1000) {
+            let rgb = hslToLedRgb(h / 1000, s / 1000, l / 1000);
+            return `rgba(${Math.floor(rgb[0])}, ${Math.floor(rgb[1])}, ${Math.floor(rgb[2])}, ${a / 1000})`
+        }
+
+        hStyle = `background-image: linear-gradient(to right in hsl longer hue, ${cssHsl(0, 1000, 500)}, ${cssHsl(1000, 1000, 500)});`;
+        sStyle = `background-image: linear-gradient(to right in hsl, ${cssHsl(h, 100, 500, 0)}, ${cssHsl(h, 1000, 500)});`
+        lStyle = `background-image: linear-gradient(to right in hsl,
+                                                    ${cssHsl(h, s, 500, 0)} 0%,
+                                                    ${cssHsl(h, s, 500, 250)} 25%,
+                                                    ${cssHsl(h, s, 500, 1000)} 50%,
+                                                    ${cssHsl(h, s, 750, 250)} 75%,
+                                                    ${cssHsl(h, s, 1000, 0)} 100%
+                                    );`
+        // lStyle = `background-image: linear-gradient(to right, ${cssHsl(h, s, 0, 0)} 0%, ${cssHsl(h, s, 30, 100)} 20%, ${cssHsl(h, s, 50, 100)} 50%, ${cssHsl(h, s, 100, 100)} 100%);`
+
+        hsl_sliders[0].parentElement.style = hStyle
+        console.log(hsl_sliders[1])
+        hsl_sliders[1].parentElement.style = sStyle
+        hsl_sliders[2].parentElement.style = lStyle
+
+        // console.log(`background-image: linear-gradient(to right, hsla(${h / 1000 * 360}, ${s}%, 0%, 0.5), hsla(${h / 1000 * 360}, ${s}%, 50%, 1.0));`);
+
+    }
+
+    for (let slider of hsl_sliders) {
+        slider.style = "margin: 0";
+        slider.addEventListener("input", rebuildSliders);
+        rebuildSliders();
+        slider.disabled = true;
+
+        // TODO
+        // slider.parentElement.parentElement.style.display = 'none';
+    }
+
+    setInterval(rebuildColor, 1500);
+
+    let port;
+    let writer;
+    let encoder = new TextEncoder();
+    let textDecoder = new TextDecoderStream();
+
+    function hslToRgb(h, s, l) {
+        var r, g, b;
+
+        if (s === 0) {
+            r = g = b = l; // achromatic
+        } else {
+            function hue2rgb(p, q, t) {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            }
+
+            var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            var p = 2 * l - q;
+
+            r = hue2rgb(p, q, h + 1/3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1/3);
+        }
+
+        return [ r * 255, g * 255, b * 255 ];
+    }
+
+    function color(h, s, l) {
+        let rgb = hslToRgb(h, s, l);
+        let coeff = 0.6;
+        let others = Math.max(rgb[1], rgb[0]) / 255.0;
+        coeff = (others * coeff) + ((1 - others));
+        rgb[2] = Math.min(255, rgb[2] * coeff);
+
+        return (Math.floor(rgb[0]) << 16) | (Math.floor(rgb[1]) << 8) | Math.floor(rgb[2]);
+    }
+
+    function getHeartbeatDelay() {
+        return [3, currentHb["stages"][3]["length_ms"] + currentHb["stages"][4]["length_ms"]];
+    }
+
+    // TODO make HSL
+    function makeHeartbeat(base_h, base_s, base_l, speed) {
+        function ms(n) {
+            return Math.round(n / speed)
+        }
+
+        function lessMs(n) {
+            return Math.round(n / Math.min(speed, 2.5));
+        }
+
+        let low = color(base_h, base_s, base_l / 25.0);
+        let peak = color(base_h, base_s, base_l);
+        let mid = color(base_h, base_s, base_l / 5.0);
+
+
+        return {
+            "stages": [
+                {
+                    "length_ms": lessMs(150),
+                    "led": {
+                        "Lerp": {
+                            "start": low,
+                            "end": peak
+                        }
+                    }
+                },
+                {
+                    "length_ms": lessMs(150),
+                    "led": {
+                        "Constant": peak,
+                    }
+                },
+                {
+                    "length_ms": lessMs(150),
+                    "led": {
+                        "Lerp": {
+                            "start": peak,
+                            "end": mid,
+                        }
+                    }
+                },
+                {
+                    "length_ms": ms(1300),
+                    "led": {
+                        "Lerp": {
+                            "start": mid,
+                            "end": low
+                        }
+                    }
+                },
+                // {
+                //     "length_ms": ms(800),
+                //     "led": {
+                //         "Constant": mid,
+                //     }
+                // },
+                // {
+                //     "length_ms": ms(500),
+                //     "led": {
+                //         "Lerp": {
+                //             "start": mid,
+                //             "end": low
+                //         }
+                //     }
+                // },
+                {
+                    "length_ms": ms(100),
+                    "led": {
+                        "Constant": low
+                    }
+                }
+            ]
+        }
+    }
+
+    document.getElementById("reset").addEventListener("click", () => {
+        setDefaults();
+    })
+
+    let currentHb;
+
+    async function rebuildColor() {
+        currentHb = makeHeartbeat(h / 1000, s / 1000, l / 1000, (speed_slider.value / 1000));
+
+        if (writer) {
+            let written = 0;
+            let data = encoder.encode(JSON.stringify(currentHb) + "\n");
+            while (written < data.length) {
+                let next_chunk = Math.min(64, data.length - written);
+                writer.write(data.subarray(written, written + next_chunk));
+                written += next_chunk;
+                await new Promise(r => setTimeout(r, 50));
+            }
+        }
+    }
+
+    rebuildColor();
+
+    document.getElementById("connect").addEventListener("click", async (e) => {
+        e.target.disabled = true;
+        port = await navigator.serial.requestPort();
+        await port.open({
+            baudRate: 115_200,
+            bufferSize: 64,
+            dataBits: 8,
+            stopBits: 1,
+            parity: "none",
+            flowControl: "none"
+        });
+        writer = port.writable.getWriter();
+        await rebuildColor();
+
+        for (let elt of hsl_sliders) {
+            elt.disabled = false;
+        }
+        speed_slider.disabled = false;
+        await reader();
+    });
+
+    let hb = new Audio(`heartbeat.wav`);
+
+    function playHb() {
+        let speed = speed_slider.value;
+        let rate = Math.max(Math.min(Math.round(speed / 1000 * 10 / 2) / 10 * 2, 2.5), 1.0);
+        hb.playbackRate = rate === 2 ? 2.2 : rate;
+        hb.preservesPitch = true;
+        console.log(hb.playbackRate);
+
+        hb.currentTime = 0;
+        hb.play();
+    }
+
+    async function reader() {
+        const reader = textDecoder.readable.getReader();
+
+        let str = "";
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+                // Allow the serial port to be closed later.
+                reader.releaseLock();
+                break;
+            }
+            str += value;
+
+            if (str.includes("\n")) {
+                let lines = str.split("\n");
+                let [stage, delay] = getHeartbeatDelay();
+                if (lines[0].trim().startsWith(`INFO - ${stage}: State`)) {
+                    setTimeout(playHb, delay);
+                }
+                console.log("RX: ", lines[0]);
+                str = lines.slice(1).join(' ')
+            }
+        }
+    }
+
+</script>
+
+</body>
+</html>
