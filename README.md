@@ -4,12 +4,13 @@ This is the repository for all of my open-source TTRPG things
 
 ## Index
 
-- 3d models (made in OpenSCAD)
+- 3d models (made in OpenSCAD - all licensed [Creative Commons Attribution-ShareAlike 4.0](3d-models/LICENSE-CC-BY-SA-4.0))
   - Parametric circle + square AoE measuring tool ([OpenSCAD src](3d-models/measuring/aoe-circle-square.scad),
     [MakerWorld](https://makerworld.com/en/models/2045220-parametric-ttrpg-aoe-circle-square-measuring-tool)).
   - Stackable spiral staircase tower ([OpenSCAD src](3d-models/tower/Tower.scad),
     [MakerWorld](https://makerworld.com/en/models/2943460-stackable-spiral-staircase-tower-for-ttrpgs-25mm)).
-- [rgb-led-control](rgb-led-control/README.md): program to make an RGB heartbeat with an ESP32 + 2x RGB LEDs
+- [rgb-led-control](rgb-led-control/README.md): program to make an RGB heartbeat with an ESP32 + 2x RGB LEDs. Licensed
+  [Apache 2.0](rgb-led-control/LICENSE-APACHE).
 
 ## Gallery
 
