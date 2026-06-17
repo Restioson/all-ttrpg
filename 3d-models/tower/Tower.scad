@@ -204,11 +204,6 @@ module stairs() {
             }
 
         }
-        
-        difference() {
-            cylinder(tower_height_mm, r=tower_radius_mm);
-            cylinder(tower_height_mm, r=tower_radius_mm - 39);
-        }
 
         cylinder(tower_height_mm, r=tower_radius_mm - 0.5);
     }
