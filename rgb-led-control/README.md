@@ -9,3 +9,9 @@ needs no server. Tested and works on latest Chrome on Windows 11, and also on la
 The only implemented part of rgb-led-control is the heartbeat program. This causes the LED to have a heartbeat effect,
 with configurable HSL colour (~mostly colour corrected) and BPM. It also plays synchronised sound effects through the
 browser.
+
+
+Minis from various sources - heart from
+[SF3DPrints on MakerWorld](https://makerworld.com/en/models/229829-anatomically-accurate-heart)
+
+![Beating heart](3d-models/tower/loop.mp4)
