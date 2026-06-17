@@ -25,6 +25,4 @@ This is the repository for all of my open-source TTRPG things
 Minis from various sources - heart from
 [SF3DPrints on MakerWorld](https://makerworld.com/en/models/229829-anatomically-accurate-heart)
 
-
-
 <video src="https://github.com/user-attachments/assets/bc340950-369f-4721-ab5e-caf0e4af5077"/>
