@@ -25,4 +25,4 @@ This is the repository for all of my open-source TTRPG things
 Minis from various sources - heart from
 [SF3DPrints on MakerWorld](https://makerworld.com/en/models/229829-anatomically-accurate-heart)
 
-![Beating heart](3d-models/tower/loop.mp4)
+<video src="https://github.com/Restioson/all-ttrpg/raw/refs/heads/main/rgb-led-control/loop.mp4"/>
